@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Salesforce – Classificar atendimento GD4
 // @namespace    sf-classificar-gd4
-// @version      2.1
-// @updateURL    https://raw.githubusercontent.com/DiegoSilva77/automacoes-autodoc/main/salesforce-classificar.user.js
-// @downloadURL  https://raw.githubusercontent.com/DiegoSilva77/automacoes-autodoc/main/salesforce-classificar.user.js
+// @version      2.2
+// @updateURL    https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js
+// @downloadURL  https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js
 // @description  Menu que preenche os campos do Formulário do caso no Salesforce com combinações prontas.
 // @match        https://ambartech.lightning.force.com/*
 // @grant        none

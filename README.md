@@ -12,8 +12,8 @@ Scripts para o Tampermonkey que automatizam tarefas repetitivas da equipe de sup
 1. Instale a extensão **Tampermonkey** no Chrome ou no Edge.
 2. Clique com o botão direito no ícone do Tampermonkey e escolha **Gerenciar extensão**. Ligue **Permitir scripts de usuário** (*Allow User Scripts*).
 3. Clique nos links abaixo. O Tampermonkey abre uma tela de instalação: clique em **Instalar**.
-   - [Instalar script do GD4](https://raw.githubusercontent.com/DiegoSilva77/automacoes-autodoc/main/gd4-cadastro-usuario.user.js)
-   - [Instalar script do Salesforce](https://raw.githubusercontent.com/DiegoSilva77/automacoes-autodoc/main/salesforce-classificar.user.js)
+   - [Instalar script do GD4](https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/gd4-cadastro-usuario.user.js)
+   - [Instalar script do Salesforce](https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js)
 4. Recarregue o GD4 e o Salesforce com **F5**.
 
 As atualizações chegam sozinhas (o Tampermonkey verifica uma vez por dia). Para receber na hora: ícone do Tampermonkey > **Verificar atualizações de scripts de usuário**.
