@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         GD4 – Preencher cadastro de usuário (padrão)
 // @namespace    gd4-cadastro-usuario
-// @version      1.1
-// @updateURL    https://raw.githubusercontent.com/DiegoSilva77/automacoes-autodoc/main/salesforce-classificar.user.js
-// @downloadURL  https://raw.githubusercontent.com/DiegoSilva77/automacoes-autodoc/main/salesforce-classificar.user.js
+// @version      1.2
+// @updateURL    https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/gd4-cadastro-usuario.user.js
+// @downloadURL  https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/gd4-cadastro-usuario.user.js
 // @description  Adiciona um botão na tela de cadastro de usuário do GD4 que gera um CPF válido, liga "Administrador" e as flags de recebimento de e-mails.
 // @match        https://*.autodoc.com.br/*
 // @match        https://*.autodocdev.com/*
