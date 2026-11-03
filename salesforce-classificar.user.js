@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Salesforce – Classificar atendimento GD4
 // @namespace    sf-classificar-gd4
-// @version      2.2
+// @version      2.4
 // @updateURL    https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js
 // @downloadURL  https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js
 // @description  Menu que preenche os campos do Formulário do caso no Salesforce com combinações prontas.
@@ -74,6 +74,15 @@
         'Subcategoria - CATRACA': { valor: 'Abandono', opcional: true }, // só existe em formulários da CATRACA
         'Analista - N1': ANALISTA_LOGADO,
         'Obra Associada': 'Abandono',
+      },
+    },
+    {
+      nome: 'Giro Invertido',
+      campos: {
+        'Canal - Atendimento': { valor: 'Whatsapp', soSeVazio: true }, // mantém o que já vier preenchido
+        'Categoria': 'Configuração',
+        'Subcategoria - CATRACA': 'Giro Invertido',
+        'Analista - N1': ANALISTA_LOGADO,
       },
     },
   ];
@@ -625,40 +634,52 @@
 
   // ---------- Interface ----------
 
+  // Aviso no canto da tela. Fecha sozinho (6 s se deu certo, 20 s se teve problema),
+  // ou na hora: botão ✕, tecla Esc ou clique no próprio aviso.
+  function fecharAviso() {
+    const box = document.getElementById('sf-auto-toast');
+    if (box) { clearTimeout(box._t); box.remove(); }
+  }
+
   function mostrarAviso(texto, problema) {
-    const box = document.getElementById('sf-auto-toast') || document.createElement('div');
+    fecharAviso();
+    const box = document.createElement('div');
     box.id = 'sf-auto-toast';
+    box.title = 'Clique para fechar';
     Object.assign(box.style, {
       position: 'fixed', right: '76px', bottom: '56px', zIndex: 2147483647, maxWidth: '440px',
-      background: problema ? '#7a1f1f' : '#1f5f3a', color: '#fff', padding: '12px 14px',
+      background: problema ? '#7a1f1f' : '#1f5f3a', color: '#fff', padding: '12px 38px 12px 14px',
       borderRadius: '8px', font: '13px/1.4 system-ui, sans-serif', boxShadow: '0 4px 16px rgba(0,0,0,.3)',
-      whiteSpace: 'pre-wrap',
+      whiteSpace: 'pre-wrap', cursor: 'pointer',
     });
-    box.textContent = texto;
+    const msg = document.createElement('div');
+    msg.textContent = texto;
+    const fechar = document.createElement('button');
+    fechar.type = 'button';
+    fechar.textContent = '✕';
+    fechar.setAttribute('aria-label', 'Fechar aviso');
+    Object.assign(fechar.style, {
+      position: 'absolute', top: '6px', right: '6px', width: '26px', height: '26px', borderRadius: '50%',
+      border: 'none', background: 'rgba(255,255,255,.18)', color: '#fff', font: '700 13px system-ui, sans-serif',
+      cursor: 'pointer', lineHeight: '26px', padding: '0',
+    });
+    fechar.addEventListener('mouseenter', () => { fechar.style.background = 'rgba(255,255,255,.35)'; });
+    fechar.addEventListener('mouseleave', () => { fechar.style.background = 'rgba(255,255,255,.18)'; });
+    box.addEventListener('click', fecharAviso);
+    box.append(msg, fechar);
     document.body.appendChild(box);
-    clearTimeout(box._t);
-    box._t = setTimeout(() => box.remove(), problema ? 20000 : 6000);
+    box._t = setTimeout(fecharAviso, problema ? 20000 : 6000);
   }
 
   function mostrarResultado(caso, relatorio, segundos) {
     const problemas = relatorio.filter(ehProblema);
-    const box = document.getElementById('sf-auto-toast') || document.createElement('div');
-    box.id = 'sf-auto-toast';
-    Object.assign(box.style, {
-      position: 'fixed', right: '76px', bottom: '56px', zIndex: 2147483647, maxWidth: '440px',
-      background: problemas.length ? '#7a1f1f' : '#1f5f3a', color: '#fff', padding: '12px 14px',
-      borderRadius: '8px', font: '13px/1.4 system-ui, sans-serif', boxShadow: '0 4px 16px rgba(0,0,0,.3)',
-      whiteSpace: 'pre-wrap',
-    });
-    box.textContent = problemas.length
+    mostrarAviso(problemas.length
       ? `${caso.nome}: ${problemas.length} item(ns) com problema:\n` +
         problemas.map((p) => `• ${p.item} → ${p.resultado}`).join('\n') + '\n\n(Detalhes no Console, F12)'
       : `${caso.nome}: tudo preenchido em ${segundos}s!\n` +
         relatorio.filter((r) => /\(razão social/.test(r.item)).map((r) => r.item + '\n').join('') +
-        (SALVAR_AUTOMATICAMENTE ? 'Salvo.' : 'Confira e clique em Salvar.');
-    document.body.appendChild(box);
-    clearTimeout(box._t);
-    box._t = setTimeout(() => box.remove(), problemas.length ? 20000 : 6000);
+        (SALVAR_AUTOMATICAMENTE ? 'Salvo.' : 'Confira e clique em Salvar.'),
+    problemas.length > 0);
   }
 
   const AZUL = '#1a73e8';
@@ -766,7 +787,7 @@
     const ui = document.getElementById('sf-auto-ui');
     if (ui && !e.composedPath().includes(ui)) abrirMenu(false);
   }, true);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') abrirMenu(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { abrirMenu(false); fecharAviso(); } });
 
   // Mostra o botão só quando há um registro aberto (endereço com /lightning/r/).
   function verificarTela() {
