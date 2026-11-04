@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Salesforce – Classificar atendimento GD4
 // @namespace    sf-classificar-gd4
-// @version      2.4
+// @version      2.5
 // @updateURL    https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js
 // @downloadURL  https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js
 // @description  Menu que preenche os campos do Formulário do caso no Salesforce com combinações prontas.
@@ -22,6 +22,11 @@
   const ANALISTA_LOGADO = { automatico: 'meuNome' };
   const SALVAR_AUTOMATICAMENTE = false;   // true = clica em "Salvar" no final
   const PAUSA_ENTRE_CAMPOS = 80;          // milissegundos; se algum campo falhar de vez em quando, aumente para 200
+
+  // Atalho de teclado: seleciona a etapa "Resolvido" no caminho do caso e clica em "Marcar como Status atual".
+  // Para trocar a tecla, mude "tecla" (ex.: 'KeyQ' para Q) e as teclas modificadoras (alt/ctrl/shift).
+  const ATALHO_RESOLVIDO = { alt: true, ctrl: false, shift: false, tecla: 'KeyR', rotulo: 'Alt+R' };
+  const ETAPA_RESOLVIDO = 'Resolvido';
 
   // Origem automática: lê "Nome da razão social" (cartão Detalhes de Contato).
   // Se for a conta abaixo → Fornecedores; qualquer outra coisa (ou vazio) → Construtores.
@@ -632,6 +637,68 @@
     rodando = false;
   }
 
+  // ---------- Atalho: marcar como Resolvido ----------
+  function acharEtapa(nome) {
+    const alvo = norm(nome);
+    return deepAll('a.slds-path__link, a[data-tab-name], li[data-name] a[role="option"]')
+      .filter((a) => a.isConnected && visivel(a))
+      .find((a) => [a.getAttribute('data-tab-name'), a.getAttribute('title'), a.closest('li') && a.closest('li').getAttribute('data-name')]
+        .some((v) => norm(v) === alvo)) || null;
+  }
+
+  const etapaAtual = (a) => {
+    const li = a && a.closest('li');
+    return !!li && li.classList.contains('slds-is-current');
+  };
+
+  function botaoMarcarAtual() {
+    return deepAll('button.slds-path__mark-complete, button.stepAction').filter(visivel)
+      .find((b) => norm(textoProfundo(b)) === 'MARCAR COMO STATUS ATUAL') || null;
+  }
+
+  async function marcarResolvido() {
+    if (rodando) return;
+    rodando = true;
+    definirStatus('⏳ Marcando como Resolvido…');
+    try {
+      // Formulário em edição sem salvar: mudar o status agora poderia perder o que foi preenchido.
+      if (deepAll('button[name="SaveEdit"]').some(visivel)) {
+        mostrarAviso('Salve (ou cancele) a edição do formulário antes de marcar como Resolvido.', true);
+        return;
+      }
+      const etapa = acharEtapa(ETAPA_RESOLVIDO);
+      if (!etapa) { mostrarAviso(`Não encontrei a etapa "${ETAPA_RESOLVIDO}" neste caso.`, true); return; }
+      // Já resolvido: não clica em nada (o botão viraria "Marcar Status como concluído(a)" e iria para Fechado).
+      if (etapaAtual(etapa)) { mostrarAviso(`Este caso já está como ${ETAPA_RESOLVIDO}.`, false); return; }
+
+      etapa.click();
+      const selecionada = () => { const e = acharEtapa(ETAPA_RESOLVIDO); return e && e.getAttribute('aria-selected') === 'true'; };
+      const botao = await esperar(() => (selecionada() ? botaoMarcarAtual() : null), 4000, 50);
+      if (!botao) { mostrarAviso('NÃO ENCONTREI o botão "Marcar como Status atual". Nada foi alterado.', true); return; }
+      botao.click();
+
+      const ok = await esperar(() => etapaAtual(acharEtapa(ETAPA_RESOLVIDO)), 8000, 150);
+      if (ok) mostrarAviso(`Status alterado para ${ETAPA_RESOLVIDO}.`, false);
+      else mostrarAviso('Cliquei em "Marcar como Status atual", mas não consegui confirmar a mudança.\n' +
+        'Confira o status: o Salesforce pode ter aberto uma janela pedindo mais informações.', true);
+    } catch (e) {
+      console.error('[SF classificar]', e);
+      mostrarAviso('Erro ao marcar como Resolvido: ' + e, true);
+    } finally {
+      definirStatus(null);
+      rodando = false;
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    const a = ATALHO_RESOLVIDO;
+    if (e.code !== a.tecla || e.altKey !== a.alt || e.ctrlKey !== a.ctrl || e.shiftKey !== a.shift || e.repeat) return;
+    if (!/\/lightning\/r\//.test(location.pathname)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    marcarResolvido();
+  }, true);
+
   // ---------- Interface ----------
 
   // Aviso no canto da tela. Fecha sozinho (6 s se deu certo, 20 s se teve problema),
@@ -702,6 +769,8 @@
     if (trocar) {
       const nome = lerNomeSalvo();
       trocar.textContent = nome ? `⚙ Trocar meu nome (${nome})` : '⚙ Meu nome: será perguntado na próxima automação';
+      const dica = document.getElementById('sf-auto-dica-atalho');
+      if (dica) dica.textContent = `⌨ ${ATALHO_RESOLVIDO.rotulo}: marcar o caso como ${ETAPA_RESOLVIDO}`;
     }
     menu.style.display = aberto ? 'flex' : 'none';
     document.getElementById('sf-auto-botao').setAttribute('aria-expanded', String(aberto));
@@ -761,6 +830,11 @@
       mostrarAviso('Pronto! Na próxima automação vou perguntar o seu nome de novo.', false);
     });
     menu.appendChild(trocar);
+
+    const dica = document.createElement('div');
+    dica.id = 'sf-auto-dica-atalho';
+    Object.assign(dica.style, { padding: '2px 14px 6px', color: '#706e6b', font: '12px system-ui, sans-serif', whiteSpace: 'nowrap' });
+    menu.appendChild(dica);
 
     // Botão redondo que abre/fecha o menu
     const botao = document.createElement('button');
