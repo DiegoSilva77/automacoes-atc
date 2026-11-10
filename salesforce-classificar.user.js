@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Salesforce – Classificar atendimento GD4
 // @namespace    sf-classificar-gd4
-// @version      2.5
+// @version      2.6
 // @updateURL    https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js
 // @downloadURL  https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js
 // @description  Menu que preenche os campos do Formulário do caso no Salesforce com combinações prontas.
@@ -27,6 +27,11 @@
   // Para trocar a tecla, mude "tecla" (ex.: 'KeyQ' para Q) e as teclas modificadoras (alt/ctrl/shift).
   const ATALHO_RESOLVIDO = { alt: true, ctrl: false, shift: false, tecla: 'KeyR', rotulo: 'Alt+R' };
   const ETAPA_RESOLVIDO = 'Resolvido';
+
+  // Atalho de teclado: preenche "Nome da razão social" (cartão Detalhes de Contato) com a conta
+  // CONTA_FORNECEDOR e salva. Alt+A de "Autodoc", perto do Alt+R para usar só com a mão esquerda
+  // (Alt+F, Alt+E e Alt+D não dão: o navegador usa). Outras livres na mão esquerda: KeyQ, KeyW, KeyG.
+  const ATALHO_RAZAO_SOCIAL = { alt: true, ctrl: false, shift: false, tecla: 'KeyA', rotulo: 'Alt+A' };
 
   // Origem automática: lê "Nome da razão social" (cartão Detalhes de Contato).
   // Se for a conta abaixo → Fornecedores; qualquer outra coisa (ou vazio) → Construtores.
@@ -690,13 +695,92 @@
     }
   }
 
+  // ---------- Atalho: razão social = fornecedor ----------
+  const ROTULO_RAZAO = 'Nome da razão social';
+
+  // Campo de busca da razão social em edição (pelo nome do campo ou dentro do bloco Contact.AccountId).
+  function campoRazaoEmEdicao() {
+    const porRotulo = buscarCampo(ROTULO_RAZAO, false);
+    if (porRotulo && porRotulo.tagName === 'INPUT') return porRotulo;
+    for (const bloco of deepAll(SELETOR_RAZAO_SOCIAL).filter(visivel)) {
+      const i = deepAllIncluindo(bloco, 'input[role="combobox"], input[type="text"]').find(visivel);
+      if (i) return i;
+    }
+    return null;
+  }
+
+  // Botão Salvar do MESMO cartão do campo (o formulário do caso tem outro botão Salvar igual).
+  function salvarDoCartao(campo) {
+    let el = campo;
+    for (let i = 0; i < 60 && el; i++, el = subir(el)) {
+      const b = deepAllIncluindo(el, 'button[name="SaveEdit"]').find(visivel);
+      if (b) return b;
+    }
+    return null;
+  }
+
+  async function preencherRazaoFornecedor() {
+    if (rodando) return;
+    rodando = true;
+    definirStatus('⏳ Preenchendo a razão social…');
+    try {
+      if (ehContaFornecedor(lerRazaoSocial())) {
+        mostrarAviso(`A razão social já é ${CONTA_FORNECEDOR.nome}.`, false);
+        return;
+      }
+      // 1) entra em edição pelo lápis do campo
+      let campo = campoRazaoEmEdicao();
+      if (!campo) {
+        const alvo = norm('Editar ' + ROTULO_RAZAO);
+        const ehLapis = (b) => visivel(b) && norm(b.getAttribute('title') || b.getAttribute('aria-label') || textoProfundo(b)) === alvo;
+        const blocos = deepAll(SELETOR_RAZAO_SOCIAL).filter(visivel);
+        const lapis = blocos.map((bl) => deepAllIncluindo(bl, 'button').find(ehLapis)).find(Boolean) ||
+          deepAll('button').find(ehLapis);
+        if (!lapis) { mostrarAviso(`Não encontrei o lápis do campo "${ROTULO_RAZAO}". Nada foi alterado.`, true); return; }
+        lapis.click();
+        campo = await esperar(campoRazaoEmEdicao, 6000, 100);
+        if (!campo) { mostrarAviso(`O campo "${ROTULO_RAZAO}" não abriu para edição. Nada foi alterado.`, true); return; }
+      }
+      // 2) preenche usando a mesma busca das automações (escolhe o nome exato)
+      cacheCampos.set(norm(ROTULO_RAZAO), campo);
+      const r = await preencherBusca(ROTULO_RAZAO, CONTA_FORNECEDOR.nome);
+      if (r !== 'preenchido' && r !== 'já estava') {
+        mostrarAviso(`Razão social: ${r}. Nada foi salvo; confira o cartão Detalhes de Contato.`, true);
+        return;
+      }
+      // 3) salva o cartão Detalhes de Contato
+      const salvar = salvarDoCartao(acharCampo(ROTULO_RAZAO, { soVisivel: false }) || campo);
+      if (!salvar) { mostrarAviso('Preenchi a razão social, mas não achei o botão Salvar do cartão. Clique em Salvar.', true); return; }
+      salvar.click();
+      const salvou = await esperar(() => !campoRazaoEmEdicao() && ehContaFornecedor(lerRazaoSocial()), 10000, 200);
+      if (salvou) mostrarAviso(`Razão social salva: ${CONTA_FORNECEDOR.nome}.`, false);
+      else mostrarAviso('Cliquei em Salvar, mas o Salesforce não confirmou.\nVeja se apareceu alguma mensagem de erro no cartão Detalhes de Contato.', true);
+    } catch (e) {
+      console.error('[SF classificar]', e);
+      mostrarAviso('Erro ao preencher a razão social: ' + e, true);
+    } finally {
+      definirStatus(null);
+      rodando = false;
+    }
+  }
+
+  // ---------- Teclas de atalho ----------
+  const ATALHOS = [
+    { cfg: ATALHO_RESOLVIDO, acao: () => marcarResolvido(), bloqueiaDigitando: false },
+    { cfg: ATALHO_RAZAO_SOCIAL, acao: () => preencherRazaoFornecedor(), bloqueiaDigitando: false },
+  ];
+  const digitando = (e) => {
+    const alvo = (e.composedPath && e.composedPath()[0]) || e.target;
+    return !!alvo && (alvo.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName || ''));
+  };
   document.addEventListener('keydown', (e) => {
-    const a = ATALHO_RESOLVIDO;
-    if (e.code !== a.tecla || e.altKey !== a.alt || e.ctrlKey !== a.ctrl || e.shiftKey !== a.shift || e.repeat) return;
-    if (!/\/lightning\/r\//.test(location.pathname)) return;
+    if (e.repeat || !/\/lightning\/r\//.test(location.pathname)) return;
+    const atalho = ATALHOS.find(({ cfg: a }) =>
+      e.code === a.tecla && e.altKey === a.alt && e.ctrlKey === a.ctrl && e.shiftKey === a.shift);
+    if (!atalho || (atalho.bloqueiaDigitando && digitando(e))) return;
     e.preventDefault();
     e.stopPropagation();
-    marcarResolvido();
+    atalho.acao();
   }, true);
 
   // ---------- Interface ----------
@@ -770,7 +854,7 @@
       const nome = lerNomeSalvo();
       trocar.textContent = nome ? `⚙ Trocar meu nome (${nome})` : '⚙ Meu nome: será perguntado na próxima automação';
       const dica = document.getElementById('sf-auto-dica-atalho');
-      if (dica) dica.textContent = `⌨ ${ATALHO_RESOLVIDO.rotulo}: marcar o caso como ${ETAPA_RESOLVIDO}`;
+      if (dica) dica.textContent = `⌨ ${ATALHO_RESOLVIDO.rotulo}: marcar como ${ETAPA_RESOLVIDO}\n⌨ ${ATALHO_RAZAO_SOCIAL.rotulo}: razão social = fornecedor`;
     }
     menu.style.display = aberto ? 'flex' : 'none';
     document.getElementById('sf-auto-botao').setAttribute('aria-expanded', String(aberto));
@@ -833,7 +917,7 @@
 
     const dica = document.createElement('div');
     dica.id = 'sf-auto-dica-atalho';
-    Object.assign(dica.style, { padding: '2px 14px 6px', color: '#706e6b', font: '12px system-ui, sans-serif', whiteSpace: 'nowrap' });
+    Object.assign(dica.style, { padding: '2px 14px 6px', color: '#706e6b', font: '12px/1.5 system-ui, sans-serif', whiteSpace: 'pre' });
     menu.appendChild(dica);
 
     // Botão redondo que abre/fecha o menu
