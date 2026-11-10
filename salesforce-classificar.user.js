@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Salesforce – Classificar atendimento GD4
 // @namespace    sf-classificar-gd4
-// @version      2.6
+// @version      2.7
 // @updateURL    https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js
 // @downloadURL  https://raw.githubusercontent.com/DiegoSilva77/automacoes-atc/main/salesforce-classificar.user.js
 // @description  Menu que preenche os campos do Formulário do caso no Salesforce com combinações prontas.
@@ -93,6 +93,18 @@
         'Categoria': 'Configuração',
         'Subcategoria - CATRACA': 'Giro Invertido',
         'Analista - N1': ANALISTA_LOGADO,
+      },
+    },
+    {
+      nome: 'Redefinição de senha',
+      campos: {
+        'Canal - Atendimento': { valor: 'Whatsapp', soSeVazio: true }, // mantém o que já vier preenchido
+        'Módulo - GD4': 'Login',
+        'Origem - GD4': ORIGEM_AUTOMATICA, // Fornecedores ou Construtores, pela razão social
+        'Categoria': 'Configuração',
+        'Subcategoria - GD4': 'Redefinição de senha',
+        'Analista - N1': ANALISTA_LOGADO,
+        'Obra Associada': 'NÃO SE APLICA',
       },
     },
   ];
